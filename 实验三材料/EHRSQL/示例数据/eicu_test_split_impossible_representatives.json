@@ -1,0 +1,146 @@
+{
+  "possible_examples": [
+    {
+      "question": "How many times did patient 002-73243 visit the hospital in 2103?",
+      "id": "be984e91b43b5559682bb2f1",
+      "db_id": "eicu",
+      "query": "select count( distinct patient.patienthealthsystemstayid ) from patient where patient.uniquepid = '002-73243' and strftime('%y',patient.hospitaladmittime) = '2103'",
+      "is_impossible": false
+    },
+    {
+      "question": "Retrieve patient 016-35481's daily average weight since 44 months ago.",
+      "id": "f898c84719210e469d1f0643",
+      "db_id": "eicu",
+      "query": "select avg(patient.admissionweight) from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '016-35481' ) and patient.admissionweight is not null and datetime(patient.unitadmittime) >= datetime(current_time,'-44 month') group by strftime('%y-%m-%d',patient.unitadmittime)",
+      "is_impossible": false
+    },
+    {
+      "question": "Did patient 017-30318 get admitted to the hospital since 2105?",
+      "id": "7f6c3729f3927bf1c7e1c414",
+      "db_id": "eicu",
+      "query": "select count(*)>0 from patient where patient.uniquepid = '017-30318' and strftime('%y',patient.hospitaladmittime) >= '2105'",
+      "is_impossible": false
+    },
+    {
+      "question": "Is the platelets x 1000 for patient 027-69449 last measured during the first hospital visit less than the second to last value measured during the first hospital visit?",
+      "id": "b5566ab280897d125447729c",
+      "db_id": "eicu",
+      "query": "select ( select lab.labresult from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '027-69449' and patient.hospitaldischargetime is not null order by patient.hospitaladmittime asc limit 1 ) ) and lab.labname = 'platelets x 1000' and lab.labresulttime = ( select distinct lab.labresulttime from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '027-69449' and patient.hospitaldischargetime is not null order by patient.hospitaladmittime asc limit 1 ) ) and lab.labname = 'platelets x 1000' order by lab.labresulttime desc limit 1 ) ) < ( select lab.labresult from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '027-69449' and patient.hospitaldischargetime is not null order by patient.hospitaladmittime asc limit 1 ) ) and lab.labname = 'platelets x 1000' and lab.labresulttime = ( select distinct lab.labresulttime from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '027-69449' and patient.hospitaldischargetime is not null order by patient.hospitaladmittime asc limit 1 ) ) and lab.labname = 'platelets x 1000' order by lab.labresulttime desc limit 1 offset 1 ) )",
+      "is_impossible": false
+    },
+    {
+      "question": "How many patients underwent therapeutic antibacterials - fourth generation cephalosporin during the same month after being diagnosed with hypotension, until 1 year ago?",
+      "id": "77ac5f9f525becdb7831f318",
+      "db_id": "eicu",
+      "query": "select count( distinct t1.uniquepid ) from ( select patient.uniquepid, diagnosis.diagnosistime from diagnosis join patient on diagnosis.patientunitstayid = patient.patientunitstayid where diagnosis.diagnosisname = 'hypotension' and datetime(diagnosis.diagnosistime) <= datetime(current_time,'-1 year') ) as t1 join ( select patient.uniquepid, treatment.treatmenttime from treatment join patient on treatment.patientunitstayid = patient.patientunitstayid where treatment.treatmentname = 'therapeutic antibacterials - fourth generation cephalosporin' and datetime(treatment.treatmenttime) <= datetime(current_time,'-1 year') ) as t2 where t1.diagnosistime < t2.treatmenttime and datetime(t1.diagnosistime,'start of month') = datetime(t2.treatmenttime,'start of month')",
+      "is_impossible": false
+    },
+    {
+      "question": "What are the top three most prescribed drugs for patients who were also prescribed potassium chloride er at the same time since 4 years ago?",
+      "id": "32cf9861011aa212a361c8a6",
+      "db_id": "eicu",
+      "query": "select t3.drugname from ( select t2.drugname, dense_rank() over ( order by count(*) desc ) as c1 from ( select patient.uniquepid, medication.drugstarttime from medication join patient on medication.patientunitstayid = patient.patientunitstayid where medication.drugname = 'potassium chloride er' and datetime(medication.drugstarttime) >= datetime(current_time,'-4 year') ) as t1 join ( select patient.uniquepid, medication.drugname, medication.drugstarttime from medication join patient on medication.patientunitstayid = patient.patientunitstayid where datetime(medication.drugstarttime) >= datetime(current_time,'-4 year') ) as t2 on t1.uniquepid = t2.uniquepid where datetime(t1.drugstarttime) = datetime(t2.drugstarttime) group by t2.drugname ) as t3 where t3.c1 <= 3",
+      "is_impossible": false
+    },
+    {
+      "question": "What lab test was given to patient 006-207754 for the last time since 38 months ago?",
+      "id": "38dfb528a7a76777c02fc68c",
+      "db_id": "eicu",
+      "query": "select lab.labname from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '006-207754' ) ) and datetime(lab.labresulttime) >= datetime(current_time,'-38 month') and lab.labresulttime = ( select distinct lab.labresulttime from lab where lab.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '006-207754' ) ) and datetime(lab.labresulttime) >= datetime(current_time,'-38 month') order by lab.labresulttime desc limit 1 )",
+      "is_impossible": false
+    },
+    {
+      "question": "Count the number of times that patient 003-7849 has taken volume (ml) dopamine on their first intensive care unit visit.",
+      "id": "22193e273d6e905d7f4657cb",
+      "db_id": "eicu",
+      "query": "select count(*) from intakeoutput where intakeoutput.patientunitstayid in ( select patient.patientunitstayid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '003-7849' ) and patient.unitdischargetime is not null order by patient.unitadmittime asc limit 1 ) and intakeoutput.cellpath like '%intake%' and intakeoutput.celllabel = 'volume (ml) dopamine'",
+      "is_impossible": false
+    },
+    {
+      "question": "What is the last ward for patient 027-5581 a year before?",
+      "id": "9c84894f50390c0586b2e9ca",
+      "db_id": "eicu",
+      "query": "select patient.wardid from patient where patient.patienthealthsystemstayid in ( select patient.patienthealthsystemstayid from patient where patient.uniquepid = '027-5581' ) and datetime(patient.unitadmittime,'start of year') = datetime(current_time,'start of year','-1 year') order by patient.unitadmittime desc limit 1",
+      "is_impossible": false
+    },
+    {
+      "question": "What are the four most frequently ordered laboratory tests until 2100?",
+      "id": "527dfa5b563a8af70a940d40",
+      "db_id": "eicu",
+      "query": "select t1.labname from ( select lab.labname, dense_rank() over ( order by count(*) desc ) as c1 from lab where strftime('%y',lab.labresulttime) <= '2100' group by lab.labname ) as t1 where t1.c1 <= 4",
+      "is_impossible": false
+    }
+  ],
+  "impossible_examples": [
+    {
+      "question": "Which immuno-cancer drugs have been prescribed in the last five years?",
+      "id": "0c6a091a1bfec7fcf8083c95",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Can someone tell me how many operating rooms there are right now?",
+      "id": "1c555903bfe4870f6f32658b",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "When is patient 022-61539 scheduled to receive the next MRI?",
+      "id": "0ae48a903ab0e19edf7e2881",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What kind of fast-acting insulin is it?",
+      "id": "d7a78ddc9c6bb8eac163cec4",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Will patient 015-52724 receive any additional urine or catheter specimen tests?",
+      "id": "834262366f21f7fb3f4157b3",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What is the outcome of the MRI for patient 035-24054?",
+      "id": "4a010432d738ae26b0f4784b",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What immuno-cancer drugs have been used in the last five years?",
+      "id": "33b1fb1b3a7d1b0decb64a6a",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What type of insulin is capable of fast action?",
+      "id": "1527a8b5daf92e8fce1470c3",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What is the number of patients who requested a copy of their prescription while in the hospital?",
+      "id": "c841492bdbc7c0286886929e",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "When was the last time patient 035-20156 had medication that should be taken daily?",
+      "id": "0f1b4a2f2141417026742c31",
+      "db_id": "eicu",
+      "query": "null",
+      "is_impossible": true
+    }
+  ]
+}

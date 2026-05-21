@@ -1,0 +1,146 @@
+{
+  "possible_examples": [
+    {
+      "question": "When was the last time patient 22517 had the maximum value of arterial BP mean on or until 12/26/2105?",
+      "id": "3dedaa132688b440fc89f9ec",
+      "db_id": "mimic_iii",
+      "query": "select chartevents.charttime from chartevents where chartevents.icustay_id in ( select icustays.icustay_id from icustays where icustays.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 22517 ) ) and chartevents.itemid in ( select d_items.itemid from d_items where d_items.label = 'arterial bp mean' and d_items.linksto = 'chartevents' ) and strftime('%y-%m-%d',chartevents.charttime) <= '2105-12-26' order by chartevents.valuenum desc, chartevents.charttime desc limit 1",
+      "is_impossible": false
+    },
+    {
+      "question": "What are the top four most frequent diagnoses that patients were diagnosed with within the same month after being diagnosed with sec mal neo brain/spine until 4 years ago?",
+      "id": "c5b1986a43e66feca738b290",
+      "db_id": "mimic_iii",
+      "query": "select d_icd_diagnoses.short_title from d_icd_diagnoses where d_icd_diagnoses.icd9_code in ( select t3.icd9_code from ( select t2.icd9_code, dense_rank() over ( order by count(*) desc ) as c1 from ( select admissions.subject_id, diagnoses_icd.charttime from diagnoses_icd join admissions on diagnoses_icd.hadm_id = admissions.hadm_id where diagnoses_icd.icd9_code = ( select d_icd_diagnoses.icd9_code from d_icd_diagnoses where d_icd_diagnoses.short_title = 'sec mal neo brain/spine' ) and datetime(diagnoses_icd.charttime) <= datetime(current_time,'-4 year') ) as t1 join ( select admissions.subject_id, diagnoses_icd.icd9_code, diagnoses_icd.charttime from diagnoses_icd join admissions on diagnoses_icd.hadm_id = admissions.hadm_id where datetime(diagnoses_icd.charttime) <= datetime(current_time,'-4 year') ) as t2 on t1.subject_id = t2.subject_id where t1.charttime < t2.charttime and datetime(t1.charttime,'start of month') = datetime(t2.charttime,'start of month') group by t2.icd9_code ) as t3 where t3.c1 <= 4 )",
+      "is_impossible": false
+    },
+    {
+      "question": "tell me patient 1815's maximum arterial bp mean since 1185 days ago.",
+      "id": "b2be3a420f669927adb81384",
+      "db_id": "mimic_iii",
+      "query": "select max(chartevents.valuenum) from chartevents where chartevents.icustay_id in ( select icustays.icustay_id from icustays where icustays.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 1815 ) ) and chartevents.itemid in ( select d_items.itemid from d_items where d_items.label = 'arterial bp mean' and d_items.linksto = 'chartevents' ) and datetime(chartevents.charttime) >= datetime(current_time,'-1185 day')",
+      "is_impossible": false
+    },
+    {
+      "question": "Retrieve the top four most frequent procedures since 2104.",
+      "id": "68de8bf765e9938a9997171d",
+      "db_id": "mimic_iii",
+      "query": "select d_icd_procedures.short_title from d_icd_procedures where d_icd_procedures.icd9_code in ( select t1.icd9_code from ( select procedures_icd.icd9_code, dense_rank() over ( order by count(*) desc ) as c1 from procedures_icd where strftime('%y',procedures_icd.charttime) >= '2104' group by procedures_icd.icd9_code ) as t1 where t1.c1 <= 4 )",
+      "is_impossible": false
+    },
+    {
+      "question": "What was the drug that patient 20862 was prescribed for the first time via IV route since 13 months ago?",
+      "id": "2f30eed47bc26891913b46de",
+      "db_id": "mimic_iii",
+      "query": "select prescriptions.drug from prescriptions where prescriptions.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 20862 ) and prescriptions.route = 'iv' and datetime(prescriptions.startdate) >= datetime(current_time,'-13 month') order by prescriptions.startdate asc limit 1",
+      "is_impossible": false
+    },
+    {
+      "question": "Has any medication been prescribed to patient 18237 this year?",
+      "id": "186520d5e4c78acb0068c0b5",
+      "db_id": "mimic_iii",
+      "query": "select count(*)>0 from prescriptions where prescriptions.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 18237 ) and datetime(prescriptions.startdate,'start of year') = datetime(current_time,'start of year','-0 year')",
+      "is_impossible": false
+    },
+    {
+      "question": "Show me the length of stay for patient 46802's last ICU stay.",
+      "id": "10e15750f7775547e901d6fa",
+      "db_id": "mimic_iii",
+      "query": "select strftime('%j',icustays.outtime) - strftime('%j',icustays.intime) from icustays where icustays.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 46802 ) and icustays.outtime is not null order by icustays.intime desc limit 1",
+      "is_impossible": false
+    },
+    {
+      "question": "Calculate the total amount of D5NS that patient 13995 received until 07/30/2103.",
+      "id": "2dcd7bebbe54fdab35f41515",
+      "db_id": "mimic_iii",
+      "query": "select sum(inputevents_cv.amount) from inputevents_cv where inputevents_cv.icustay_id in ( select icustays.icustay_id from icustays where icustays.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 13995 ) ) and inputevents_cv.itemid in ( select d_items.itemid from d_items where d_items.label = 'd5ns' and d_items.linksto = 'inputevents_cv' ) and strftime('%y-%m-%d',inputevents_cv.charttime) <= '2103-07-30'",
+      "is_impossible": false
+    },
+    {
+      "question": "How many times is pantoprazole ordered for patient 42956 until 158 months ago?",
+      "id": "51e4de606fbbaee80395d4e2",
+      "db_id": "mimic_iii",
+      "query": "select count(*) from prescriptions where prescriptions.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 42956 ) and prescriptions.drug = 'pantoprazole' and datetime(prescriptions.startdate) <= datetime(current_time,'-158 month')",
+      "is_impossible": false
+    },
+    {
+      "question": "What was the name of the output that patient 20000 first had on 02/24/2105?",
+      "id": "3c43af6fdc70873bdb10d948",
+      "db_id": "mimic_iii",
+      "query": "select d_items.label from d_items where d_items.itemid in ( select outputevents.itemid from outputevents where outputevents.icustay_id in ( select icustays.icustay_id from icustays where icustays.hadm_id in ( select admissions.hadm_id from admissions where admissions.subject_id = 20000 ) ) and strftime('%y-%m-%d',outputevents.charttime) = '2105-02-24' order by outputevents.charttime asc limit 1 )",
+      "is_impossible": false
+    }
+  ],
+  "impossible_examples": [
+    {
+      "question": "Can you identify a genetic test that patient 655 received?",
+      "id": "cdf00f5b2f856bd47aaef94a",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Does patient 7241 have a genetic test that they received?",
+      "id": "b18202aa82e310cce1e9cfdd",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Does patient 62298 have a plan to visit after the current hospital visit, including other departments?",
+      "id": "b9eade3e855d7d23be0e6f81",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Is there a gender restriction on aluminum-magnesium hydrox.-simethicone?",
+      "id": "1e85eb470064d0bde58eb40c",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What is the correct dosage of the prescribed opioid to patient 19428?",
+      "id": "cb73f6174c6945673d7df43a",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "From what age is prochlorperazine maleate permitted for use?",
+      "id": "5bbcf5d979a40f004ee0f4ae",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "When was the last time patient 594 had a medication that should be taken regularly?",
+      "id": "a6253f58af16d5b67b805177",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "How many operation rooms are currently available?",
+      "id": "a307426e007a798982e19625",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "Does patient 3745 have a plan to visit her current hospital after the current hospital visit, including other departments?",
+      "id": "b48416a46bcc5dcbc4c0f8fe",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    },
+    {
+      "question": "What is the number of patients who requested a copy of their prescription during their hospital stays?",
+      "id": "ff560fc201236b18019c8101",
+      "db_id": "mimic_iii",
+      "query": "null",
+      "is_impossible": true
+    }
+  ]
+}

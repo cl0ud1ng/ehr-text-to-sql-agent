@@ -1,0 +1,44 @@
+patterns:
+  first:
+    triggers: ["first", "earliest", "initial"]
+    sql_hint: "Use ORDER BY <time_column> ASC LIMIT 1."
+  last:
+    triggers: ["last", "latest", "most recent"]
+    sql_hint: "Use ORDER BY <time_column> DESC LIMIT 1."
+  second:
+    triggers: ["second", "second time"]
+    sql_hint: "Use ORDER BY <time_column> ASC LIMIT 1 OFFSET 1."
+  since:
+    triggers: ["since", "after"]
+    sql_hint: "Translate to a >= date/time predicate."
+  until:
+    triggers: ["until", "before"]
+    sql_hint: "Translate to a <= date/time predicate."
+  within_first_24_hours:
+    triggers: ["within first 24 hours", "first 24 hours"]
+    sql_hint: "Compare event time to datetime(start_time, '+24 hours')."
+
+database_time_fields:
+  mimic_iii:
+    hospital_visit:
+      table: ADMISSIONS
+      key: HADM_ID
+      start: ADMITTIME
+      end: DISCHTIME
+    icu_stay:
+      table: ICUSTAYS
+      key: ICUSTAY_ID
+      start: INTIME
+      end: OUTTIME
+  eicu:
+    hospital_visit:
+      table: patient
+      key: patienthealthsystemstayid
+      start: hospitaladmittime
+      end: hospitaldischargetime
+    icu_stay:
+      table: patient
+      key: patientunitstayid
+      start: unitadmittime
+      end: unitdischargetime
+

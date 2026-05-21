@@ -1,0 +1,30 @@
+project:
+  name: ehrsql-light-agent
+  output_dir: outputs
+
+databases:
+  mimic_iii:
+    path: "实验三材料/EHRSQL/mimic_iii.sqlite"
+    display_name: "MIMIC-III"
+  eicu:
+    path: "实验三材料/EHRSQL/eicu.sqlite"
+    display_name: "eICU"
+
+agent:
+  default_db: mimic_iii
+  default_model: deepseek-v4-flash
+  default_prompt_version: schema
+  max_repairs: 2
+  max_rows: 100
+  timeout_seconds: 5.0
+  top_k_tables: 6
+  top_k_columns: 15
+  use_cache: true
+
+llm:
+  base_url: https://api.deepseek.com
+  timeout_seconds: 60
+  max_retries: 3
+  reasoning_effort: high
+  thinking: enabled
+
