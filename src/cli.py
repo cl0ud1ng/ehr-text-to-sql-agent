@@ -14,7 +14,9 @@ def main() -> None:
     parser.add_argument("--sql", help="Execute a raw SQL query instead of calling the agent")
     parser.add_argument("--schema", action="store_true", help="Show retrieved schema for --question")
     parser.add_argument("--model", default=None, help="DeepSeek model id")
-    parser.add_argument("--prompt-version", default="schema", choices=["base", "schema", "fewshot", "reflection"])
+    parser.add_argument("--prompt-version", default="fewshot", choices=["base", "schema", "fewshot", "reflection"])
+    parser.add_argument("--example-type", default="auto", choices=["auto", "basic", "time"])
+    parser.add_argument("--time-tags", nargs="*", help="Optional EHRSQL time tags for few-shot selection")
     parser.add_argument("--mode", default="new_query", choices=["new_query", "followup"])
     parser.add_argument("--max-rows", type=int, default=100)
     parser.add_argument("--timeout", type=float, default=5.0)
@@ -41,6 +43,8 @@ def main() -> None:
         max_rows=args.max_rows,
         timeout_seconds=args.timeout,
         use_cache=not args.no_cache,
+        example_type=args.example_type,
+        sample_metadata={"t_tag": args.time_tags or []},
     )
     _print_result(result, as_json=args.json)
 
@@ -89,4 +93,3 @@ def _print_result(result: Dict[str, Any], *, as_json: bool) -> None:
 
 if __name__ == "__main__":
     main()
-

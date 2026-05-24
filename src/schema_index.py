@@ -10,7 +10,7 @@ from typing import Any, Optional, Tuple
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-EHRSQL_ROOT = PROJECT_ROOT / "实验三材料" / "EHRSQL"
+EHRSQL_ROOT = PROJECT_ROOT / "data" / "EHRSQL"
 
 DB_PATHS = {
     "mimic_iii": str(EHRSQL_ROOT / "mimic_iii.sqlite"),
@@ -24,7 +24,12 @@ _ALIAS_BOOSTS = [
     ({"diagnosis", "diagnoses", "diagnostic", "icd"}, {"diagnoses_icd", "d_icd_diagnoses", "diagnosis"}, 30.0),
     ({"lab", "labs", "test", "tests", "laboratory"}, {"labevents", "d_labitems", "lab"}, 30.0),
     ({"heart", "rate", "vital", "vitals"}, {"chartevents", "d_items", "vitalperiodic"}, 30.0),
-    ({"cost", "costs", "charge", "charges"}, {"cost"}, 30.0),
+    ({"cost", "costs", "price", "prices", "charge", "charges"}, {"cost"}, 30.0),
+    (
+        {"cost", "costs", "price", "prices", "charge", "charges"},
+        {"procedures_icd", "d_icd_procedures", "treatment", "labevents", "d_labitems", "lab", "prescriptions", "medication"},
+        12.0,
+    ),
     ({"procedure", "procedures", "treatment", "treatments"}, {"cost", "procedures_icd", "d_icd_procedures", "treatment"}, 24.0),
     ({"patient", "patients"}, {"patients", "patient"}, 18.0),
     ({"admission", "admissions", "hospital", "hosp"}, {"admissions", "patient"}, 24.0),

@@ -63,7 +63,7 @@ class SchemaIndexTests(unittest.TestCase):
         self.assertIn("AGE INTEGER", text)
 
     def test_keyword_boost_recalls_domain_tables(self):
-        mimic_path = Path(__file__).resolve().parents[1] / "实验三材料" / "EHRSQL" / "mimic_iii.sqlite"
+        mimic_path = Path(__file__).resolve().parents[1] / "data" / "EHRSQL" / "mimic_iii.sqlite"
         if not mimic_path.exists():
             self.skipTest("real EHRSQL database is not available")
 
@@ -71,6 +71,18 @@ class SchemaIndexTests(unittest.TestCase):
         names = [table["name"] for table in retrieved["tables"]]
 
         self.assertIn("PRESCRIPTIONS", names)
+
+    def test_cost_keyword_recalls_cost_and_event_tables(self):
+        mimic_path = Path(__file__).resolve().parents[1] / "data" / "EHRSQL" / "mimic_iii.sqlite"
+        if not mimic_path.exists():
+            self.skipTest("real EHRSQL database is not available")
+
+        retrieved = retrieve_schema("what is the price of albumin", "mimic_iii", top_k_tables=6)
+        names = [table["name"] for table in retrieved["tables"]]
+
+        self.assertIn("COST", names)
+        self.assertIn("D_LABITEMS", names)
+        self.assertIn("LABEVENTS", names)
 
 
 if __name__ == "__main__":

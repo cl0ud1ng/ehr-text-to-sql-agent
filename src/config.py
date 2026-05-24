@@ -14,13 +14,13 @@ def load_config(path: Optional[Union[str, os.PathLike[str]]] = None) -> Dict[str
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
     defaults: Dict[str, Any] = {
         "databases": {
-            "mimic_iii": {"path": "实验三材料/EHRSQL/mimic_iii.sqlite"},
-            "eicu": {"path": "实验三材料/EHRSQL/eicu.sqlite"},
+            "mimic_iii": {"path": "data/EHRSQL/mimic_iii.sqlite"},
+            "eicu": {"path": "data/EHRSQL/eicu.sqlite"},
         },
         "agent": {
             "default_db": "mimic_iii",
             "default_model": "deepseek-v4-flash",
-            "default_prompt_version": "schema",
+            "default_prompt_version": "fewshot",
             "max_repairs": 2,
             "max_rows": 100,
             "timeout_seconds": 5.0,

@@ -28,6 +28,12 @@ Run an agent query:
 python -m src.cli --db mimic_iii --question "What is the method of fluconazole intake?"
 ```
 
+Use deterministic representative examples for few-shot prompting:
+
+```bash
+python -m src.cli --db mimic_iii --prompt-version fewshot --example-type time --time-tags exact-first --question "When was the first prescription?"
+```
+
 Show retrieved schema:
 
 ```bash
@@ -37,8 +43,40 @@ python -m src.cli --db mimic_iii --question "What is the method of fluconazole i
 ## Evaluation
 
 ```bash
-python -m src.evaluator --db mimic_iii --data "实验三材料/EHRSQL/测试集/mimic_iii_test_empty.json" --limit 10
+python -m src.evaluator --db mimic_iii --data "data/EHRSQL/测试集/mimic_iii_test_empty.json" --limit 10
 ```
+
+Run samples in parallel and write JSON/CSV artifacts:
+
+```bash
+python -m src.evaluator \
+  --db mimic_iii \
+  --data outputs/evaluation/small50_mimic_iii_samples.json \
+  --workers 6 \
+  --output outputs/evaluation/small50_mimic_iii_results.json \
+  --rows-csv outputs/evaluation/small50_mimic_iii_rows.csv \
+  --summary-output outputs/evaluation/small50_mimic_iii_summary.json \
+  --summary-csv outputs/evaluation/small50_mimic_iii_summary.csv
+```
+
+Summarize existing result JSON files without re-running the model:
+
+```bash
+python -m src.evaluator \
+  --summarize outputs/evaluation/small50_mimic_iii_results_fixed_parallel.json outputs/evaluation/small50_eicu_results_fixed_parallel.json \
+  --summary-output outputs/evaluation/small50_grouped_summary.json \
+  --summary-csv outputs/evaluation/small50_grouped_summary.csv
+```
+
+## Repair Demo
+
+Run deterministic SQL repair cases and save the report artifact:
+
+```bash
+python -m src.repair_demo --json
+```
+
+The summary is written to `outputs/evaluation/repair_cases.json`; detailed run logs are written under `outputs/runs/`.
 
 ## Web UI
 

@@ -4,16 +4,16 @@ project:
 
 databases:
   mimic_iii:
-    path: "实验三材料/EHRSQL/mimic_iii.sqlite"
+    path: "data/EHRSQL/mimic_iii.sqlite"
     display_name: "MIMIC-III"
   eicu:
-    path: "实验三材料/EHRSQL/eicu.sqlite"
+    path: "data/EHRSQL/eicu.sqlite"
     display_name: "eICU"
 
 agent:
   default_db: mimic_iii
   default_model: deepseek-v4-flash
-  default_prompt_version: schema
+  default_prompt_version: fewshot
   max_repairs: 2
   max_rows: 100
   timeout_seconds: 5.0
@@ -27,4 +27,3 @@ llm:
   max_retries: 3
   reasoning_effort: high
   thinking: enabled
-

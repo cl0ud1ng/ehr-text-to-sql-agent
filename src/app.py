@@ -15,18 +15,20 @@ if str(ROOT_DIR) not in sys.path:
 
 from src.agent.planner import build_followup_context, run_agent
 from src.evaluator import results_equal
+from src.repair_demo import REPAIR_CASES
 from src.schema_index import format_schema_context, retrieve_schema
 from src.sql_executor import execute_sql
 
 
+EHRSQL_DATA_DIR = ROOT_DIR / "data" / "EHRSQL"
 TEST_FILES = {
     "mimic_iii": {
-        "基础集": ROOT_DIR / "实验三材料" / "EHRSQL" / "测试集" / "mimic_iii_test_empty.json",
-        "时间推理集": ROOT_DIR / "实验三材料" / "EHRSQL" / "测试集" / "mimic_iii_test_not_empty.json",
+        "基础集": EHRSQL_DATA_DIR / "测试集" / "mimic_iii_test_empty.json",
+        "时间推理集": EHRSQL_DATA_DIR / "测试集" / "mimic_iii_test_not_empty.json",
     },
     "eicu": {
-        "基础集": ROOT_DIR / "实验三材料" / "EHRSQL" / "测试集" / "eicu_test_empty.json",
-        "时间推理集": ROOT_DIR / "实验三材料" / "EHRSQL" / "测试集" / "eicu_test_not_empty.json",
+        "基础集": EHRSQL_DATA_DIR / "测试集" / "eicu_test_empty.json",
+        "时间推理集": EHRSQL_DATA_DIR / "测试集" / "eicu_test_not_empty.json",
     },
 }
 
@@ -40,7 +42,7 @@ def main() -> None:
     with st.sidebar:
         db_id = st.selectbox("数据库", ["mimic_iii", "eicu"], index=0)
         model = st.selectbox("模型", ["deepseek-v4-flash", "deepseek-v4-pro"], index=0)
-        prompt_version = st.selectbox("Prompt", ["schema", "base", "fewshot", "reflection"], index=0)
+        prompt_version = st.selectbox("Prompt", ["fewshot", "schema", "base", "reflection"], index=0)
         mode_label = st.radio("查询模式", ["新查询", "基于历史摘要追问"], index=0)
         mode = "followup" if mode_label == "基于历史摘要追问" else "new_query"
         max_rows = st.number_input("最大返回行数", min_value=1, max_value=1000, value=100, step=25)
@@ -58,6 +60,8 @@ def main() -> None:
     default_question = sample.get("question", "") if sample else ""
     question = st.text_area("问题", value=st.session_state.get("question_text", default_question), height=110)
     st.session_state.question_text = question
+    example_type = _example_type_from_split(st.session_state.get("active_split_name", "")) if sample else "auto"
+    sample_metadata = _sample_prompt_metadata(sample, example_type)
 
     cols = st.columns([1, 1, 4])
     run_clicked = cols[0].button("运行", type="primary", use_container_width=True)
@@ -82,10 +86,14 @@ def main() -> None:
                 max_rows=int(max_rows),
                 timeout_seconds=float(timeout_seconds),
                 use_cache=use_cache,
+                example_type=example_type,
+                sample_metadata=sample_metadata,
             )
         st.session_state.last_result = result
         if result.get("generated_sql") and result.get("execution", {}).get("ok"):
             _append_history(result)
+
+    _repair_demo_panel(db_id, model, prompt_version, int(max_rows), float(timeout_seconds), use_cache)
 
     if st.session_state.last_result:
         _render_result(st.session_state.last_result, sample)
@@ -98,11 +106,13 @@ def _init_state() -> None:
     st.session_state.setdefault("last_result", None)
     st.session_state.setdefault("selected_sample", None)
     st.session_state.setdefault("question_text", "")
+    st.session_state.setdefault("active_split_name", "基础集")
 
 
 def _sample_picker(db_id: str) -> Optional[Dict[str, Any]]:
     with st.expander("测试集样本", expanded=False):
         split_name = st.selectbox("数据集", list(TEST_FILES[db_id].keys()), index=0)
+        st.session_state.active_split_name = split_name
         samples = _load_samples(TEST_FILES[db_id][split_name])
         col1, col2, col3 = st.columns([1, 1, 2])
         if col1.button("随机样本", use_container_width=True):
@@ -147,6 +157,46 @@ def _show_schema(question: str, db_id: str) -> None:
     retrieved = retrieve_schema(question, db_id)
     with st.expander("候选 Schema", expanded=True):
         st.code(format_schema_context(retrieved), language="text")
+
+
+def _repair_demo_panel(
+    db_id: str,
+    model: str,
+    prompt_version: str,
+    max_rows: int,
+    timeout_seconds: float,
+    use_cache: bool,
+) -> None:
+    with st.expander("自动修复演示", expanded=False):
+        cases = [case for case in REPAIR_CASES if case["db_id"] == db_id]
+        if not cases:
+            st.write("当前数据库暂无修复案例。")
+            return
+        case_ids = [case["id"] for case in cases]
+        selected_id = st.selectbox(
+            "案例",
+            case_ids,
+            format_func=lambda case_id: next(case["title"] for case in cases if case["id"] == case_id),
+        )
+        selected = next(case for case in cases if case["id"] == selected_id)
+        st.write(selected["error_type"])
+        st.code(selected["broken_sql"], language="sql")
+        if st.button("运行修复案例", use_container_width=True):
+            with st.spinner("Repair running..."):
+                result = run_agent(
+                    selected["question"],
+                    db_id=db_id,
+                    model=model,
+                    prompt_version=prompt_version,
+                    max_rows=max_rows,
+                    timeout_seconds=timeout_seconds,
+                    use_cache=use_cache,
+                    initial_sql=selected["broken_sql"],
+                )
+            st.session_state.question_text = selected["question"]
+            st.session_state.selected_sample = None
+            st.session_state.last_result = result
+            st.rerun()
 
 
 def _render_result(result: Dict[str, Any], sample: Optional[Dict[str, Any]]) -> None:
@@ -213,6 +263,9 @@ def _render_steps(result: Dict[str, Any]) -> None:
     if result.get("errors"):
         st.write("错误")
         st.json(result["errors"], expanded=False)
+    if result.get("fewshot"):
+        st.write("Few-shot")
+        st.json(result["fewshot"], expanded=False)
 
 
 def _render_execution_table(execution: Dict[str, Any]) -> None:
@@ -292,6 +345,19 @@ def _is_unanswerable(sample: Dict[str, Any]) -> bool:
     return sample.get("is_impossible") is True or query is None or str(query).strip().lower() in {"", "null", "nan", "none"}
 
 
+def _example_type_from_split(split_name: str) -> str:
+    return "time" if split_name == "时间推理集" else "basic"
+
+
+def _sample_prompt_metadata(sample: Optional[Dict[str, Any]], example_type: str) -> Dict[str, Any]:
+    return {
+        "example_type": example_type,
+        "t_tag": sample.get("t_tag") if sample else [],
+        "tag": sample.get("tag") if sample else None,
+        "id": sample.get("id") if sample else None,
+    }
+
+
 def _error_message(payload: Dict[str, Any]) -> str:
     error = payload.get("error")
     if isinstance(error, dict):
@@ -301,4 +367,3 @@ def _error_message(payload: Dict[str, Any]) -> str:
 
 if __name__ == "__main__":
     main()
-

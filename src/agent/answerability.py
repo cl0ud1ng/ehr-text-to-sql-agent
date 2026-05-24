@@ -25,6 +25,17 @@ UNSUPPORTED_TERMS = {
     "future visit",
     "follow-up appointment",
     "relieve",
+    "which doctor",
+    "phone number",
+    "companion",
+    "family history",
+    "gender restriction",
+    "documents are required",
+    "required for hospital discharge",
+    "effect of",
+    "what effect",
+    "type of fast-acting insulin",
+    "other department",
     "clinical guideline",
     "causal",
     "why did",
@@ -38,9 +49,12 @@ def judge_answerability(
     llm_client: Optional[DeepSeekClient] = None,
     model: Optional[str] = None,
     followup_context: Optional[str] = None,
+    use_llm: bool = True,
 ) -> Dict[str, Any]:
     rule = rule_based_answerability(question, schema_context)
     if rule["decision"] in {"answerable", "not_answerable"}:
+        return rule
+    if not use_llm:
         return rule
 
     client = llm_client or DeepSeekClient(model=model)
@@ -96,13 +110,27 @@ def rule_based_answerability(question: str, schema_context: str) -> Dict[str, An
                 "source": "rules",
             }
     schema_text = schema_context.lower()
-    if _looks_like_cost_procedure_question(text) and "cost" in schema_text:
-        if "d_icd_procedures" in schema_text or "procedures_icd" in schema_text or "treatment" in schema_text:
+    if _looks_like_cost_question(text) and "cost" in schema_text:
+        if any(
+            table in schema_text
+            for table in (
+                "d_icd_procedures",
+                "procedures_icd",
+                "treatment",
+                "d_labitems",
+                "labevents",
+                "lab",
+                "prescriptions",
+                "medication",
+                "diagnoses_icd",
+                "diagnosis",
+            )
+        ):
             return {
                 "decision": "answerable",
                 "answerable": True,
-                "reason": "Cost/procedure questions are answerable from COST plus procedure/treatment tables in this schema.",
-                "required_tables": ["COST", "PROCEDURES_ICD/D_ICD_PROCEDURES or treatment"],
+                "reason": "Cost questions are answerable from COST plus event-specific tables in this schema.",
+                "required_tables": ["COST plus event-specific table"],
                 "missing_evidence": "",
                 "source": "rules",
             }
@@ -147,21 +175,8 @@ def rule_based_answerability(question: str, schema_context: str) -> Dict[str, An
     }
 
 
-def _looks_like_cost_procedure_question(text: str) -> bool:
-    return any(term in text for term in ("cost", "price", "prices", "charge")) and any(
-        term in text
-        for term in (
-            "procedure",
-            "procedures",
-            "transfusion",
-            "lobectomy",
-            "valvuloplasty",
-            "fixation",
-            "angiography",
-            "catheter",
-            "resection",
-        )
-    )
+def _looks_like_cost_question(text: str) -> bool:
+    return any(term in text for term in ("cost", "costs", "price", "prices", "charge", "charges", "how much"))
 
 
 def _looks_like_medication_route_question(text: str) -> bool:

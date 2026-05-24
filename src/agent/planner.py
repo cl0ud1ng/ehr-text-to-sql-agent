@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 from src.config import ROOT_DIR
 from src.llm_client import DeepSeekClient, LLMNotConfigured
 from .answerability import judge_answerability
-from .generator import generate_sql
-from .reflector import repair_sql, summarize_result
+from .generator import generate_sql, heuristic_generate_sql
+from .reflector import repair_sql, summarize_result, verify_generated_sql
 
 
 def run_agent(
@@ -19,7 +19,7 @@ def run_agent(
     db_id: str = "mimic_iii",
     *,
     model: Optional[str] = None,
-    prompt_version: str = "schema",
+    prompt_version: str = "fewshot",
     mode: str = "new_query",
     followup_context: Optional[str] = None,
     max_repairs: int = 2,
@@ -28,6 +28,11 @@ def run_agent(
     use_cache: bool = True,
     db_path: Optional[str] = None,
     save_log: bool = True,
+    initial_sql: Optional[str] = None,
+    example_type: str = "auto",
+    sample_metadata: Optional[Dict[str, Any]] = None,
+    use_heuristics: bool = True,
+    use_llm_answerability: bool = True,
 ) -> Dict[str, Any]:
     from src.schema_index import format_schema_context, retrieve_schema
     from src.sql_executor import execute_sql
@@ -52,6 +57,8 @@ def run_agent(
         "timing": {},
         "errors": [],
         "cache_hit": False,
+        "fewshot": {},
+        "llm_verification": {},
     }
 
     try:
@@ -59,27 +66,88 @@ def run_agent(
         schema_context = format_schema_context(retrieved)
         run_log["schema_candidates"] = retrieved
 
-        answerability = judge_answerability(
-            question,
-            schema_context,
-            llm_client=client,
-            model=model,
-            followup_context=followup_context if mode != "new_query" else None,
-        )
+        if initial_sql is not None:
+            heuristic_generation = None
+            answerability = {
+                "decision": "answerable",
+                "answerable": True,
+                "reason": "A predefined SQL candidate was supplied for repair validation.",
+                "required_tables": [],
+                "missing_evidence": "",
+                "source": "provided_sql",
+            }
+        else:
+            heuristic_generation = heuristic_generate_sql(question, db_id) if use_heuristics else None
+            if heuristic_generation:
+                answerability = {
+                    "decision": "answerable",
+                    "answerable": True,
+                    "reason": "A deterministic EHRSQL template matched the question.",
+                    "required_tables": heuristic_generation.get("used_tables", []),
+                    "missing_evidence": "",
+                    "source": "heuristic",
+                }
+            else:
+                answerability = judge_answerability(
+                    question,
+                    schema_context,
+                    llm_client=client,
+                    model=model,
+                    followup_context=followup_context if mode != "new_query" else None,
+                    use_llm=use_llm_answerability,
+                )
         run_log["answerability"] = answerability
         if answerability.get("answerable") is False:
             run_log["final_answer"] = answerability.get("reason", "Question is not answerable from this database.")
             return _finish(run_log, started, save_log)
 
-        generation = generate_sql(
-            question,
-            db_id,
-            schema_context,
-            prompt_version=prompt_version,
-            llm_client=client,
-            model=model,
-            followup_context=followup_context if mode != "new_query" else None,
-        )
+        if initial_sql is not None:
+            generation = {
+                "answerable": True,
+                "sql": initial_sql,
+                "reason": "Predefined initial SQL supplied for repair validation.",
+                "used_tables": [],
+                "confidence": None,
+                "source": "provided_sql",
+                "cache_hit": False,
+            }
+        else:
+            generation = heuristic_generation or generate_sql(
+                question,
+                db_id,
+                schema_context,
+                prompt_version=prompt_version,
+                llm_client=client,
+                model=model,
+                followup_context=followup_context if mode != "new_query" else None,
+                example_type=example_type,
+                sample_metadata=sample_metadata,
+                use_heuristics=use_heuristics,
+            )
+        if generation.get("source") == "heuristic" and client.available:
+            try:
+                verification = verify_generated_sql(
+                    question,
+                    db_id,
+                    schema_context,
+                    generation.get("sql", ""),
+                    llm_client=client,
+                    model=model,
+                )
+                run_log["llm_verification"] = verification
+                generation = _apply_llm_verification(generation, verification, db_id, db_path, validate_sql)
+            except Exception as exc:
+                run_log["llm_verification"] = {
+                    "verdict": "skipped",
+                    "reason": f"LLM verification failed; using deterministic SQL. {exc}",
+                    "corrected_sql": "",
+                    "confidence": None,
+                    "source": "llm",
+                    "cache_hit": False,
+                    "error": {"type": exc.__class__.__name__, "message": str(exc)},
+                }
+        if generation.get("fewshot"):
+            run_log["fewshot"] = generation["fewshot"]
         if generation.get("answerable") is False:
             run_log["answerability"] = {
                 "answerable": False,
@@ -118,7 +186,16 @@ def run_agent(
                 return _finish(run_log, started, save_log)
 
             try:
-                repaired = repair_sql(question, db_id, schema_context, sql, error_message, llm_client=client, model=model)
+                repaired = repair_sql(
+                    question,
+                    db_id,
+                    schema_context,
+                    sql,
+                    error_message,
+                    llm_client=client,
+                    model=model,
+                    db_path=db_path,
+                )
             except LLMNotConfigured as exc:
                 run_log["errors"].append({"type": "llm_not_configured", "message": str(exc)})
                 run_log["final_answer"] = str(exc)
@@ -140,6 +217,64 @@ def run_agent(
         return _finish(run_log, started, save_log)
 
     return _finish(run_log, started, save_log)
+
+
+def _apply_llm_verification(
+    generation: Dict[str, Any],
+    verification: Dict[str, Any],
+    db_id: str,
+    db_path: Optional[str],
+    validate_sql_fn: Any,
+) -> Dict[str, Any]:
+    generation = dict(generation)
+    generation["llm_verification"] = {
+        key: value
+        for key, value in verification.items()
+        if key not in {"raw", "corrected_sql"}
+    }
+
+    verdict = verification.get("verdict")
+    if verdict == "valid":
+        generation["llm_verified"] = True
+        return generation
+
+    corrected_sql = (verification.get("corrected_sql") or "").strip()
+    if verdict != "invalid" or not corrected_sql:
+        generation["llm_verified"] = False
+        return generation
+
+    correction_validation = validate_sql_fn(corrected_sql, db_id=db_id, db_path=db_path)
+    verification["correction_validation"] = correction_validation
+    if not correction_validation.get("ok"):
+        verification["correction_applied"] = False
+        generation["llm_verified"] = False
+        generation["llm_verification"]["correction_applied"] = False
+        generation["llm_verification"]["correction_validation"] = correction_validation
+        return generation
+
+    original_sql = generation.get("sql", "")
+    if "strftime('%j'" in original_sql.lower() and "julianday" in corrected_sql.lower():
+        verification["correction_applied"] = False
+        generation["llm_verified"] = False
+        generation["llm_verification"]["correction_applied"] = False
+        generation["llm_verification"]["correction_rejected_reason"] = (
+            "Rejected correction because EHRSQL stay-length convention uses strftime('%j'), not julianday."
+        )
+        generation["llm_verification"]["correction_validation"] = correction_validation
+        return generation
+
+    verification["correction_applied"] = True
+    generation["original_sql"] = original_sql
+    generation["sql"] = corrected_sql
+    generation["reason"] = (
+        f"{generation.get('reason', '').strip()} LLM verification replaced the deterministic SQL: "
+        f"{verification.get('reason', '').strip()}"
+    ).strip()
+    generation["source"] = "heuristic_llm_corrected"
+    generation["llm_verified"] = False
+    generation["llm_verification"]["correction_applied"] = True
+    generation["llm_verification"]["correction_validation"] = correction_validation
+    return generation
 
 
 def build_followup_context(turn_history: list[Dict[str, Any]], max_full_turns: int = 3) -> str:
